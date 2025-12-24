@@ -62,11 +62,16 @@ export function Navbar() {
                 <Sun className="h-5 w-5" />
               )}
             </Button>
-            <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
-              <Link to="/dashboard">Login</Link>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden sm:flex"
+              asChild
+            >
+              <Link to="/login">Login</Link>
             </Button>
             <Button variant="hero" size="sm" className="hidden sm:flex" asChild>
-              <Link to="/#contact">Request Demo</Link>
+              <Link to="/signup">Sign Up</Link>
             </Button>
 
             {/* Mobile Menu Button */}
@@ -76,7 +81,11 @@ export function Navbar() {
               className="md:hidden"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              {mobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
             </Button>
           </div>
         </div>
@@ -101,10 +110,10 @@ export function Navbar() {
               ))}
               <div className="flex gap-2 pt-4 border-t mt-2">
                 <Button variant="outline" size="sm" className="flex-1" asChild>
-                  <Link to="/dashboard">Login</Link>
+                  <Link to="/login">Login</Link>
                 </Button>
                 <Button variant="hero" size="sm" className="flex-1" asChild>
-                  <Link to="/#contact">Request Demo</Link>
+                  <Link to="/signup">Sign Up</Link>
                 </Button>
                 <Button variant="ghost" size="icon" onClick={toggleTheme}>
                   {theme === "light" ? (

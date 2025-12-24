@@ -1,20 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { KPICard } from "@/components/dashboard/KPICard";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Users,
   ArrowUpRight,
-  ArrowDownRight,
   AlertTriangle,
   Clock,
-  CreditCard,
   Shield,
-  TrendingUp,
-  Calendar,
   RefreshCw,
+  LogIn,
+  MapPin,
 } from "lucide-react";
 import {
   BarChart,
@@ -27,58 +31,9 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
   Legend,
 } from "recharts";
-
-// Mock data
-const hourlyData = [
-  { hour: "6AM", entries: 45, exits: 12 },
-  { hour: "7AM", entries: 120, exits: 25 },
-  { hour: "8AM", entries: 280, exits: 45 },
-  { hour: "9AM", entries: 350, exits: 60 },
-  { hour: "10AM", entries: 180, exits: 85 },
-  { hour: "11AM", entries: 120, exits: 95 },
-  { hour: "12PM", entries: 90, exits: 150 },
-  { hour: "1PM", entries: 110, exits: 120 },
-  { hour: "2PM", entries: 85, exits: 90 },
-  { hour: "3PM", entries: 70, exits: 180 },
-  { hour: "4PM", entries: 45, exits: 250 },
-  { hour: "5PM", entries: 30, exits: 320 },
-];
-
-const zoneData = [
-  { name: "Main Hall", value: 450, color: "hsl(217, 91%, 60%)" },
-  { name: "Exhibition A", value: 280, color: "hsl(187, 92%, 43%)" },
-  { name: "Exhibition B", value: 220, color: "hsl(142, 76%, 36%)" },
-  { name: "Conference", value: 180, color: "hsl(38, 92%, 50%)" },
-  { name: "VIP Lounge", value: 85, color: "hsl(0, 84%, 60%)" },
-];
-
-const weeklyTrend = [
-  { day: "Mon", attendance: 1250 },
-  { day: "Tue", attendance: 1380 },
-  { day: "Wed", attendance: 1520 },
-  { day: "Thu", attendance: 1450 },
-  { day: "Fri", attendance: 1680 },
-  { day: "Sat", attendance: 2100 },
-  { day: "Sun", attendance: 1850 },
-];
-
-const recentLogs = [
-  { id: 1, name: "Alice Johnson", action: "Entry", zone: "Main Hall", time: "2 min ago", status: "success" },
-  { id: 2, name: "Bob Smith", action: "Exit", zone: "Exhibition A", time: "5 min ago", status: "success" },
-  { id: 3, name: "Carol White", action: "Denied", zone: "VIP Lounge", time: "8 min ago", status: "denied" },
-  { id: 4, name: "David Brown", action: "Entry", zone: "Conference", time: "12 min ago", status: "success" },
-  { id: 5, name: "Eve Davis", action: "Entry", zone: "Main Hall", time: "15 min ago", status: "success" },
-];
-
-const alerts = [
-  { id: 1, type: "warning", message: "High occupancy in Main Hall (92%)", time: "5 min ago" },
-  { id: 2, type: "error", message: "Multiple access denials at VIP Lounge", time: "12 min ago" },
-  { id: 3, type: "info", message: "Sync completed for Gate 3", time: "20 min ago" },
-];
+import { useAttendanceStore } from "@/store/useAttendanceStore";
 
 type UserRole = "admin" | "gate_operator" | "kitchen_operator";
 
@@ -86,9 +41,86 @@ const Dashboard = () => {
   const [userRole] = useState<UserRole>("admin");
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
+  // 1. Hook into your Spring Boot Data
+  const { records, getAttendance, isAttendanceLoading } = useAttendanceStore();
+
+  useEffect(() => {
+    getAttendance();
+    const interval = setInterval(() => {
+      getAttendance();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [getAttendance]);
+
   const handleRefresh = () => {
+    getAttendance();
     setLastRefresh(new Date());
   };
+
+  // 2. DATA TRANSFORMATIONS (Turning raw JSON into Chart Data)
+
+  // A. Zone Distribution (Pie Chart)
+  const zoneData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    records.forEach((rec) => {
+      counts[rec.location] = (counts[rec.location] || 0) + 1;
+    });
+
+    const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+    return Object.entries(counts).map(([name, value], index) => ({
+      name,
+      value,
+      color: COLORS[index % COLORS.length],
+    }));
+  }, [records]);
+
+  // B. Hourly Traffic (Bar Chart) - Groups records by the hour they occurred
+  const hourlyData = useMemo(() => {
+    const hours: Record<string, { hour: string; entries: number }> = {};
+    // Initialize 8 hours for a clean look
+    for (let i = 8; i <= 17; i++) {
+      const label = i > 12 ? `${i - 12}PM` : `${i}${i === 12 ? "PM" : "AM"}`;
+      hours[i] = { hour: label, entries: 0 };
+    }
+
+    records.forEach((rec) => {
+      const hour = new Date(rec.datetime).getHours();
+      if (hours[hour]) {
+        hours[hour].entries += 1;
+      }
+    });
+    return Object.values(hours);
+  }, [records]);
+
+  // C. Security Alerts (Filtering for "Denied" or "Unauthorized" events)
+  const securityAlerts = useMemo(() => {
+    return records
+      .filter((r) => r.event.toLowerCase().includes("denied"))
+      .map((r) => ({
+        id: r.id,
+        type: "error",
+        message: `Access Denied: ${r.fullname} at ${r.location}`,
+        time: r.datetime.split(" ")[1],
+      }))
+      .reverse()
+      .slice(0, 3);
+  }, [records]);
+
+  // D. Recent Logs (Last 5 records)
+  const recentLogs = useMemo(() => {
+    return [...records]
+      .reverse()
+      .slice(0, 5)
+      .map((r) => ({
+        id: r.id,
+        name: r.fullname,
+        action: r.event,
+        zone: r.location,
+        time: r.datetime.split(" ")[1],
+        status: r.event.toLowerCase().includes("denied") ? "denied" : "success",
+      }));
+  }, [records]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -98,182 +130,132 @@ const Dashboard = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">Live Dashboard</h1>
             <p className="text-muted-foreground">
-              Real-time overview of attendance and access
+              Connected to Spring Boot API (Port 8080)
             </p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">
-              Last updated: {lastRefresh.toLocaleTimeString()}
+              Last sync: {lastRefresh.toLocaleTimeString()}
             </span>
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isAttendanceLoading}
+            >
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${
+                  isAttendanceLoading ? "animate-spin" : ""
+                }`}
+              />
               Refresh
             </Button>
           </div>
         </div>
 
-        {/* Role-based info banner */}
-        {userRole !== "admin" && (
-          <Card className="mb-6 border-l-4 border-l-accent">
-            <CardContent className="py-3">
-              <p className="text-sm">
-                You are viewing the dashboard as a{" "}
-                <strong className="text-accent">
-                  {userRole === "gate_operator" ? "Gate Operator" : "Kitchen Operator"}
-                </strong>
-                . Some features may be limited.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* KPI Cards */}
+        {/* KPI Cards (Real Data) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <KPICard
-            title="Total Inside"
-            value="1,215"
-            change="+12% from yesterday"
+            title="Total Logs"
+            value={records.length.toString()}
+            change="Live records in DB"
             changeType="positive"
             icon={Users}
             iconColor="text-primary"
             borderColor="border-l-primary"
           />
           <KPICard
-            title="Entries Today"
-            value="2,847"
-            change="+8% from yesterday"
-            changeType="positive"
-            icon={ArrowUpRight}
+            title="Active Locations"
+            value={zoneData.length.toString()}
+            change="Reported zones"
+            changeType="neutral"
+            icon={MapPin}
             iconColor="text-success"
             borderColor="border-l-success"
           />
           <KPICard
-            title="Exits Today"
-            value="1,632"
-            change="Normal rate"
+            title="Latest Event"
+            value={recentLogs[0]?.action || "None"}
+            change={recentLogs[0]?.name || "Waiting for data"}
             changeType="neutral"
-            icon={ArrowDownRight}
+            icon={LogIn}
             iconColor="text-accent"
             borderColor="border-l-accent"
           />
           <KPICard
-            title="Active Alerts"
-            value="3"
-            change="2 require attention"
-            changeType="negative"
+            title="Security Flags"
+            value={securityAlerts.length.toString()}
+            change="Failed access attempts"
+            changeType={securityAlerts.length > 0 ? "negative" : "positive"}
             icon={AlertTriangle}
             iconColor="text-warning"
             borderColor="border-l-warning"
           />
         </div>
 
-        {/* Additional KPIs for Admin */}
-        {userRole === "admin" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <KPICard
-              title="Active Cards"
-              value="5,230"
-              change="98.5% utilization"
-              changeType="positive"
-              icon={CreditCard}
-              iconColor="text-primary"
-              borderColor="border-l-primary"
-            />
-            <KPICard
-              title="Active Zones"
-              value="12"
-              change="All operational"
-              changeType="positive"
-              icon={Shield}
-              iconColor="text-success"
-              borderColor="border-l-success"
-            />
-            <KPICard
-              title="Peak Hour"
-              value="9:00 AM"
-              change="350 entries"
-              changeType="neutral"
-              icon={Clock}
-              iconColor="text-accent"
-              borderColor="border-l-accent"
-            />
-            <KPICard
-              title="Weekly Trend"
-              value="+15%"
-              change="Compared to last week"
-              changeType="positive"
-              icon={TrendingUp}
-              iconColor="text-success"
-              borderColor="border-l-success"
-            />
-          </div>
-        )}
-
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Hourly Entry/Exit Chart */}
-          <Card variant="elevated">
+          {/* Real Hourly Traffic Chart */}
+          <Card>
             <CardHeader>
-              <CardTitle>Hourly Traffic</CardTitle>
-              <CardDescription>Entries and exits throughout the day</CardDescription>
+              <CardTitle>Daily Traffic Pattern</CardTitle>
+              <CardDescription>Activity logs grouped by hour</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={hourlyData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="hour" className="text-xs" />
-                    <YAxis className="text-xs" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="hour" fontSize={12} />
+                    <YAxis fontSize={12} />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        borderColor: "hsl(var(--border))",
-                        borderRadius: "0.5rem",
+                        borderRadius: "8px",
+                        border: "none",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                       }}
                     />
-                    <Legend />
-                    <Bar dataKey="entries" fill="hsl(217, 91%, 60%)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="exits" fill="hsl(187, 92%, 43%)" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="entries"
+                      fill="#3b82f6"
+                      radius={[4, 4, 0, 0]}
+                      barSize={30}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
 
-          {/* Zone Distribution Pie Chart */}
-          <Card variant="elevated">
+          {/* Real Zone Distribution */}
+          <Card>
             <CardHeader>
               <CardTitle>Zone Distribution</CardTitle>
-              <CardDescription>Current occupancy by zone</CardDescription>
+              <CardDescription>Records per location</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-72 flex items-center">
+              <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={zoneData}
-                      cx="50%"
-                      cy="50%"
                       innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={2}
+                      outerRadius={80}
+                      paddingAngle={5}
                       dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}`}
-                      labelLine={false}
+                      // Smooth animation props:
+                      animationBegin={0}
+                      animationDuration={800}
+                      animationEasing="ease-out"
                     >
                       {zoneData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        borderColor: "hsl(var(--border))",
-                        borderRadius: "0.5rem",
-                      }}
-                    />
+                    <Tooltip />
+                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -281,79 +263,46 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        {/* Weekly Trend Line Chart */}
-        <Card variant="elevated" className="mb-8">
-          <CardHeader>
-            <CardTitle>Weekly Attendance Trend</CardTitle>
-            <CardDescription>Total attendance over the past week</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={weeklyTrend}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="day" className="text-xs" />
-                  <YAxis className="text-xs" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      borderColor: "hsl(var(--border))",
-                      borderRadius: "0.5rem",
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="attendance"
-                    stroke="hsl(217, 91%, 60%)"
-                    strokeWidth={3}
-                    dot={{ fill: "hsl(217, 91%, 60%)", strokeWidth: 2 }}
-                    activeDot={{ r: 6, fill: "hsl(217, 91%, 60%)" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Logs and Alerts */}
+        {/* Bottom Section: Real Logs vs Alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Activity Logs */}
-          <Card variant="elevated">
+          {/* Real Recent Logs */}
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Latest access events</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" asChild>
-                <a href="/dashboard/logs">View All</a>
-              </Button>
+              <CardTitle>Live Activity Stream</CardTitle>
+              <Badge variant="secondary">{records.length} Total</Badge>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {recentLogs.map((log) => (
                   <div
                     key={log.id}
-                    className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                    className="flex items-center justify-between py-2 border-b last:border-0"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
-                        {log.name.split(" ").map((n) => n[0]).join("")}
+                      <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                        {log.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")}
                       </div>
                       <div>
                         <p className="text-sm font-medium">{log.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {log.action} • {log.zone}
+                          {log.zone}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
                       <Badge
-                        variant={log.status === "denied" ? "destructive" : "secondary"}
-                        className={log.status === "success" ? "bg-success/10 text-success" : ""}
+                        variant={
+                          log.status === "denied" ? "destructive" : "outline"
+                        }
                       >
                         {log.action}
                       </Badge>
-                      <p className="text-xs text-muted-foreground mt-1">{log.time}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {log.time}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -361,98 +310,40 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Alerts */}
-          <Card variant="elevated">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Active Alerts</CardTitle>
-                <CardDescription>System notifications requiring attention</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" asChild>
-                <a href="/dashboard/alerts">View All</a>
-              </Button>
+          {/* Real Alerts (from your Data) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Security Notifications</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {alerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className={`flex items-start gap-3 p-3 rounded-lg ${
-                      alert.type === "error"
-                        ? "bg-destructive/10"
-                        : alert.type === "warning"
-                        ? "bg-warning/10"
-                        : "bg-muted"
-                    }`}
-                  >
-                    <AlertTriangle
-                      className={`h-5 w-5 flex-shrink-0 ${
-                        alert.type === "error"
-                          ? "text-destructive"
-                          : alert.type === "warning"
-                          ? "text-warning"
-                          : "text-primary"
-                      }`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{alert.message}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{alert.time}</p>
+                {securityAlerts.length > 0 ? (
+                  securityAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20"
+                    >
+                      <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-destructive">
+                          {alert.message}
+                        </p>
+                        <p className="text-xs opacity-70">
+                          Logged at {alert.time}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Actions for specific roles */}
-        {(userRole === "gate_operator" || userRole === "kitchen_operator") && (
-          <Card variant="elevated" className="mt-8">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>
-                {userRole === "gate_operator"
-                  ? "Common gate operations"
-                  : "Kitchen management actions"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-3">
-                {userRole === "gate_operator" ? (
-                  <>
-                    <Button variant="default">
-                      <CreditCard className="mr-2 h-4 w-4" />
-                      Scan Card
-                    </Button>
-                    <Button variant="outline">
-                      <Users className="mr-2 h-4 w-4" />
-                      Manual Entry
-                    </Button>
-                    <Button variant="outline">
-                      <AlertTriangle className="mr-2 h-4 w-4" />
-                      Report Issue
-                    </Button>
-                  </>
+                  ))
                 ) : (
-                  <>
-                    <Button variant="default">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      Meal Tracking
-                    </Button>
-                    <Button variant="outline">
-                      <Users className="mr-2 h-4 w-4" />
-                      Head Count
-                    </Button>
-                    <Button variant="outline">
-                      <Clock className="mr-2 h-4 w-4" />
-                      Serving Times
-                    </Button>
-                  </>
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <Shield className="h-12 w-12 mb-2 opacity-20" />
+                    <p>No security alerts detected</p>
+                  </div>
                 )}
               </div>
             </CardContent>
           </Card>
-        )}
+        </div>
       </main>
     </div>
   );

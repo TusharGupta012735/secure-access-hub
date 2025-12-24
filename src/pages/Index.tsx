@@ -1,6 +1,12 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ContactForm } from "@/components/sections/ContactForm";
@@ -28,32 +34,38 @@ const features = [
   {
     icon: Radio,
     title: "RFID Card Management",
-    description: "Complete lifecycle management from issuance to deactivation with real-time tracking.",
+    description:
+      "Complete lifecycle management from issuance to deactivation with real-time tracking.",
   },
   {
     icon: Shield,
     title: "Access Control",
-    description: "Zone-based permissions and multi-level security for sensitive areas.",
+    description:
+      "Zone-based permissions and multi-level security for sensitive areas.",
   },
   {
     icon: Users,
     title: "Attendance Tracking",
-    description: "Automated check-in/out with detailed time and attendance reports.",
+    description:
+      "Automated check-in/out with detailed time and attendance reports.",
   },
   {
     icon: Zap,
     title: "Offline Mode",
-    description: "Continue operations without internet. Auto-sync when connection restores.",
+    description:
+      "Continue operations without internet. Auto-sync when connection restores.",
   },
   {
     icon: BarChart3,
     title: "Real-time Analytics",
-    description: "Live dashboards with insights on occupancy, flow, and patterns.",
+    description:
+      "Live dashboards with insights on occupancy, flow, and patterns.",
   },
   {
     icon: Clock,
     title: "Event Scheduling",
-    description: "Configure events, zones, and access windows with flexible scheduling.",
+    description:
+      "Configure events, zones, and access windows with flexible scheduling.",
   },
 ];
 
@@ -61,34 +73,58 @@ const useCases = [
   {
     icon: Calendar,
     title: "Large Events & Conferences",
-    description: "Manage thousands of attendees with seamless check-in and zone access control.",
-    image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80",
+    description:
+      "Manage thousands of attendees with seamless check-in and zone access control.",
+    image:
+      "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80",
   },
   {
     icon: Building2,
     title: "Corporate Institutions",
-    description: "Secure building access, time tracking, and visitor management for enterprises.",
-    image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
+    description:
+      "Secure building access, time tracking, and visitor management for enterprises.",
+    image:
+      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
   },
   {
     icon: GraduationCap,
     title: "Educational Institutions",
-    description: "Student attendance, campus security, and library access in one system.",
-    image: "https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=800&q=80",
+    description:
+      "Student attendance, campus security, and library access in one system.",
+    image:
+      "https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=800&q=80",
   },
   {
     icon: Tent,
     title: "Camps & Retreats",
-    description: "Track participants across multiple areas with meal and activity management.",
-    image: "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?auto=format&fit=crop&w=800&q=80",
+    description:
+      "Track participants across multiple areas with meal and activity management.",
+    image:
+      "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?auto=format&fit=crop&w=800&q=80",
   },
 ];
 
 const securityFeatures = [
-  { icon: Lock, title: "End-to-End Encryption", description: "All data encrypted in transit and at rest" },
-  { icon: Server, title: "99.9% Uptime SLA", description: "Enterprise-grade reliability guarantee" },
-  { icon: Wifi, title: "Offline Resilient", description: "Works without internet connectivity" },
-  { icon: Globe, title: "Global Compliance", description: "GDPR, SOC2, and ISO 27001 compliant" },
+  {
+    icon: Lock,
+    title: "End-to-End Encryption",
+    description: "All data encrypted in transit and at rest",
+  },
+  {
+    icon: Server,
+    title: "99.9% Uptime SLA",
+    description: "Enterprise-grade reliability guarantee",
+  },
+  {
+    icon: Wifi,
+    title: "Offline Resilient",
+    description: "Works without internet connectivity",
+  },
+  {
+    icon: Globe,
+    title: "Global Compliance",
+    description: "GDPR, SOC2, and ISO 27001 compliant",
+  },
 ];
 
 const Index = () => {
@@ -103,10 +139,6 @@ const Index = () => {
 
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-8 animate-fade-in">
-              <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
-              <span className="text-sm text-primary-foreground/90">Trusted by 500+ organizations worldwide</span>
-            </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-primary-foreground mb-6 animate-slide-in-up">
               Enterprise RFID
@@ -116,12 +148,19 @@ const Index = () => {
               Management System
             </h1>
 
-            <p className="text-lg sm:text-xl text-primary-foreground/80 mb-8 max-w-2xl mx-auto animate-slide-in-up" style={{ animationDelay: "0.1s" }}>
-              Secure, scalable, and reliable access control for events, institutions,
-              and large-scale operations. Real-time tracking with offline capability.
+            <p
+              className="text-lg sm:text-xl text-primary-foreground/80 mb-8 max-w-2xl mx-auto animate-slide-in-up"
+              style={{ animationDelay: "0.1s" }}
+            >
+              Secure, scalable, and reliable access control for events,
+              institutions, and large-scale operations. Real-time tracking with
+              offline capability.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-in-up" style={{ animationDelay: "0.2s" }}>
+            <div
+              className="flex flex-col sm:flex-row gap-4 justify-center animate-slide-in-up"
+              style={{ animationDelay: "0.2s" }}
+            >
               <Button variant="hero" size="xl" asChild>
                 <Link to="/#contact">
                   Request Demo
@@ -133,17 +172,30 @@ const Index = () => {
               </Button>
             </div>
 
-            <div className="mt-12 grid grid-cols-3 gap-8 max-w-md mx-auto animate-fade-in" style={{ animationDelay: "0.3s" }}>
+            <div
+              className="mt-12 grid grid-cols-3 gap-8 max-w-md mx-auto animate-fade-in"
+              style={{ animationDelay: "0.3s" }}
+            >
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary-foreground">500+</div>
-                <div className="text-sm text-primary-foreground/70">Organizations</div>
+                <div className="text-3xl font-bold text-primary-foreground">
+                  500+
+                </div>
+                <div className="text-sm text-primary-foreground/70">
+                  Organizations
+                </div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary-foreground">10M+</div>
-                <div className="text-sm text-primary-foreground/70">Cards Managed</div>
+                <div className="text-3xl font-bold text-primary-foreground">
+                  10M+
+                </div>
+                <div className="text-sm text-primary-foreground/70">
+                  Cards Managed
+                </div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary-foreground">99.9%</div>
+                <div className="text-3xl font-bold text-primary-foreground">
+                  99.9%
+                </div>
                 <div className="text-sm text-primary-foreground/70">Uptime</div>
               </div>
             </div>
@@ -160,7 +212,8 @@ const Index = () => {
               <span className="text-primary"> Access Management</span>
             </h2>
             <p className="text-lg text-muted-foreground">
-              Comprehensive tools to manage access, track attendance, and secure your premises.
+              Comprehensive tools to manage access, track attendance, and secure
+              your premises.
             </p>
           </div>
 
@@ -179,7 +232,9 @@ const Index = () => {
                   <CardTitle className="text-xl">{feature.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription className="text-base">{feature.description}</CardDescription>
+                  <CardDescription className="text-base">
+                    {feature.description}
+                  </CardDescription>
                 </CardContent>
               </Card>
             ))}
@@ -204,7 +259,8 @@ const Index = () => {
               Built for <span className="text-primary">Every Industry</span>
             </h2>
             <p className="text-lg text-muted-foreground">
-              Flexible solutions designed to meet the unique needs of different sectors.
+              Flexible solutions designed to meet the unique needs of different
+              sectors.
             </p>
           </div>
 
@@ -231,7 +287,9 @@ const Index = () => {
                   <CardTitle className="text-xl">{useCase.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription className="text-base">{useCase.description}</CardDescription>
+                  <CardDescription className="text-base">
+                    {useCase.description}
+                  </CardDescription>
                 </CardContent>
               </Card>
             ))}
@@ -250,7 +308,8 @@ const Index = () => {
               </h2>
               <p className="text-lg text-muted-foreground mb-8">
                 Your data security is our top priority. Our system is built with
-                industry-leading security practices and compliance certifications.
+                industry-leading security practices and compliance
+                certifications.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -261,7 +320,9 @@ const Index = () => {
                     </div>
                     <div>
                       <h4 className="font-semibold mb-1">{feature.title}</h4>
-                      <p className="text-sm text-muted-foreground">{feature.description}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {feature.description}
+                      </p>
                     </div>
                   </div>
                 ))}
