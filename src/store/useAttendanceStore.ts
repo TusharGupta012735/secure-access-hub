@@ -10,7 +10,22 @@ export const useAttendanceStore = create<AttendanceState>((set) => ({
     set({ isAttendanceLoading: true });
     try {
       const res = await axiosInstance.get<Attendance[]>("/attendance/");
-      console.log(res);
+      set({ records: res.data });
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to fetch attendance";
+      toast.error(errorMessage);
+    } finally {
+      set({ isAttendanceLoading: false });
+    }
+  },
+
+  getAttendanceByEvent: async (eventName: string) => {
+    set({ isAttendanceLoading: true });
+    try {
+      const res = await axiosInstance.get<Attendance[]>(
+        `/attendance/${encodeURIComponent(eventName)}`
+      );
       set({ records: res.data });
     } catch (error: any) {
       const errorMessage =
@@ -25,7 +40,7 @@ export const useAttendanceStore = create<AttendanceState>((set) => ({
 export interface Attendance {
   id: number;
   carduid: string;
-  bsduid: string;
+  bsguid: string;
   fullname: string;
   datetime: string;
   location: string;
@@ -36,4 +51,5 @@ interface AttendanceState {
   records: Attendance[];
   isAttendanceLoading: boolean;
   getAttendance: () => Promise<void>;
+  getAttendanceByEvent: (eventName: string) => Promise<void>;
 }
