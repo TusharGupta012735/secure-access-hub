@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAuthStore } from "@/store/useAuthStore";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -64,12 +65,25 @@ interface DashboardSidebarProps {
   userRole?: "admin" | "gate_operator" | "kitchen_operator";
 }
 
-export function DashboardSidebar({ userRole = "admin" }: DashboardSidebarProps) {
+export function DashboardSidebar({
+  userRole = "admin",
+}: DashboardSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { logout, isLoading } = useAuthStore();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/login");
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+  };
 
   const roleLabels = {
     admin: "Administrator",
@@ -105,17 +119,28 @@ export function DashboardSidebar({ userRole = "admin" }: DashboardSidebarProps) 
       </div>
 
       {/* User Info */}
-      <div className={cn("p-4 border-b border-sidebar-border", collapsed && "px-2")}>
+      <div
+        className={cn(
+          "p-4 border-b border-sidebar-border",
+          collapsed && "px-2"
+        )}
+      >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-semibold flex-shrink-0">
             JD
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">John Doe</p>
+              <p className="text-sm font-medium text-sidebar-foreground truncate">
+                John Doe
+              </p>
               <div className="flex items-center gap-2">
-                <span className={cn("h-2 w-2 rounded-full", roleColors[userRole])} />
-                <span className="text-xs text-sidebar-muted truncate">{roleLabels[userRole]}</span>
+                <span
+                  className={cn("h-2 w-2 rounded-full", roleColors[userRole])}
+                />
+                <span className="text-xs text-sidebar-muted truncate">
+                  {roleLabels[userRole]}
+                </span>
               </div>
             </div>
           )}
@@ -193,13 +218,14 @@ export function DashboardSidebar({ userRole = "admin" }: DashboardSidebarProps) 
         </Link>
         <Link
           to="/"
+          onClick={handleLogout}
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             collapsed && "justify-center px-2"
           )}
         >
           <LogOut className="h-5 w-5 flex-shrink-0" />
-          {!collapsed && <span>Logout</span>}
+          {!collapsed && <span>{isLoading ? "Logging out..." : "Logout"}</span>}
         </Link>
       </div>
 
@@ -210,7 +236,11 @@ export function DashboardSidebar({ userRole = "admin" }: DashboardSidebarProps) 
         className="absolute -right-3 top-20 h-6 w-6 rounded-full bg-sidebar border border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent"
         onClick={() => setCollapsed(!collapsed)}
       >
-        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        {collapsed ? (
+          <ChevronRight className="h-4 w-4" />
+        ) : (
+          <ChevronLeft className="h-4 w-4" />
+        )}
       </Button>
     </aside>
   );

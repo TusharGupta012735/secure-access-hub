@@ -12,19 +12,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 
 const Login = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { signin, isLoading, error, clearError } = useAuthStore();
   const [form, setForm] = useState({
     email: "",
     password: "",
     remember: false,
   });
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -32,24 +33,30 @@ const Login = () => {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
+    setLocalError(null);
+    clearError();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setLocalError(null);
+    clearError();
 
     if (!form.email || !form.password) {
-      setError("Please provide both email and password.");
+      setLocalError("Please provide both email and password.");
       return;
     }
 
-    setIsSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1000));
-
-    // Simulate success
-    toast({ title: "Signed in", description: `Welcome back, ${form.email}` });
-    setIsSubmitting(false);
-    navigate("/dashboard");
+    try {
+      await signin(form.email, form.password);
+      toast({
+        title: "Signed in",
+        description: `Welcome back, ${form.email}`,
+      });
+      navigate("/dashboard");
+    } catch (err: any) {
+      setLocalError(err.message);
+    }
   };
 
   return (
@@ -66,8 +73,10 @@ const Login = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
-                {error && (
-                  <div className="text-sm text-destructive">{error}</div>
+                {(localError || error) && (
+                  <div className="text-sm text-destructive">
+                    {localError || error}
+                  </div>
                 )}
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
@@ -97,7 +106,6 @@ const Login = () => {
                   <label className="flex items-center gap-2">
                     <Checkbox
                       id="remember"
-                      name="remember"
                       checked={form.remember}
                       onCheckedChange={(v) =>
                         setForm((p) => ({ ...p, remember: !!v }))
@@ -105,32 +113,21 @@ const Login = () => {
                     />
                     <span className="text-sm">Remember me</span>
                   </label>
-
-                  <Link
-                    to="/signup"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Need an account?
-                  </Link>
                 </div>
 
-                <Button
-                  type="submit"
-                  variant="hero"
-                  size="lg"
-                  className="w-full"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Signing in..." : "Sign in"}
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Signing in..." : "Sign in"}
                 </Button>
 
-                <div className="text-center text-sm text-muted-foreground">
-                  By signing in you agree to our{" "}
-                  <Link to="#" className="underline">
-                    Terms
+                <p className="text-center text-sm">
+                  Don't have an account?{" "}
+                  <Link
+                    to="/signup"
+                    className="text-primary hover:underline font-semibold"
+                  >
+                    Sign up
                   </Link>
-                  .
-                </div>
+                </p>
               </form>
             </CardContent>
           </Card>

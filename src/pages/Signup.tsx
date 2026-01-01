@@ -10,49 +10,87 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 
 const Signup = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { signup, isLoading, error, clearError } = useAuthStore();
   const [form, setForm] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
     confirm: "",
+    role: "USER" as "ADMIN" | "USER",
   });
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    setLocalError(null);
+    clearError();
+  };
+
+  const handleRoleChange = (value: string) => {
+    setForm((prev) => ({ ...prev, role: value as "ADMIN" | "USER" }));
+    setLocalError(null);
+    clearError();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setLocalError(null);
+    clearError();
 
-    if (!form.name || !form.email || !form.password || !form.confirm) {
-      setError("Please fill out all fields.");
+    if (
+      !form.firstName ||
+      !form.lastName ||
+      !form.email ||
+      !form.password ||
+      !form.confirm
+    ) {
+      setLocalError("Please fill out all fields.");
       return;
     }
 
     if (form.password !== form.confirm) {
-      setError("Passwords do not match.");
+      setLocalError("Passwords do not match.");
       return;
     }
 
-    setIsSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1000));
+    if (form.password.length < 6) {
+      setLocalError("Password must be at least 6 characters long.");
+      return;
+    }
 
-    toast({
-      title: "Account created",
-      description: "Welcome! You are now signed in.",
-    });
-    setIsSubmitting(false);
-    navigate("/dashboard");
+    try {
+      await signup(
+        form.firstName,
+        form.lastName,
+        form.email,
+        form.password,
+        form.role
+      );
+      toast({
+        title: "Account created",
+        description: "Please verify your email using the OTP sent to you.",
+      });
+      navigate("/verify-otp", { state: { email: form.email } });
+    } catch (err: any) {
+      setLocalError(err.message);
+    }
   };
 
   return (
@@ -70,19 +108,34 @@ const Signup = () => {
 
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
-                {error && (
-                  <div className="text-sm text-destructive">{error}</div>
+                {(localError || error) && (
+                  <div className="text-sm text-destructive">
+                    {localError || error}
+                  </div>
                 )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={form.name}
-                    onChange={handleChange}
-                    placeholder="Jane Doe"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First name</Label>
+                    <Input
+                      id="firstName"
+                      name="firstName"
+                      value={form.firstName}
+                      onChange={handleChange}
+                      placeholder="Jane"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last name</Label>
+                    <Input
+                      id="lastName"
+                      name="lastName"
+                      value={form.lastName}
+                      onChange={handleChange}
+                      placeholder="Doe"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -95,6 +148,19 @@ const Signup = () => {
                     onChange={handleChange}
                     placeholder="you@company.com"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role</Label>
+                  <Select value={form.role} onValueChange={handleRoleChange}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USER">User</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
@@ -119,22 +185,19 @@ const Signup = () => {
                   />
                 </div>
 
-                <Button
-                  type="submit"
-                  variant="hero"
-                  size="lg"
-                  className="w-full"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Creating account..." : "Create account"}
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Creating account..." : "Create account"}
                 </Button>
 
-                <div className="text-center text-sm text-muted-foreground">
+                <p className="text-center text-sm">
                   Already have an account?{" "}
-                  <Link to="/login" className="text-primary hover:underline">
+                  <Link
+                    to="/login"
+                    className="text-primary hover:underline font-semibold"
+                  >
                     Sign in
                   </Link>
-                </div>
+                </p>
               </form>
             </CardContent>
           </Card>
