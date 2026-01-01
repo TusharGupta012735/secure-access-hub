@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { axiosInstance } from "../lib/axios";
 
 interface User {
@@ -30,106 +31,124 @@ interface AuthState {
   logout: () => Promise<void>;
 
   clearError: () => void;
+  setAuthenticated: (value: boolean) => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  isLoading: false,
-  error: null,
-  isAuthenticated: false,
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      isLoading: false,
+      error: null,
+      isAuthenticated: false,
 
-  signup: async (firstName, lastName, email, password, role) => {
-    set({ isLoading: true, error: null });
-    try {
-      await axiosInstance.post("/auth/signup", {
-        firstName,
-        lastName,
-        email,
-        password,
-        role,
-      });
-      // Signup successful, user needs to verify OTP
-      set({ isLoading: false });
-    } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.message || "Signup failed. Please try again.";
-      set({ error: errorMessage, isLoading: false });
-      throw new Error(errorMessage);
+      setAuthenticated: (value: boolean) => {
+        set({ isAuthenticated: value });
+      },
+
+      signup: async (firstName, lastName, email, password, role) => {
+        set({ isLoading: true, error: null });
+        try {
+          await axiosInstance.post("/auth/signup", {
+            firstName,
+            lastName,
+            email,
+            password,
+            role,
+          });
+          set({ isLoading: false });
+        } catch (error: any) {
+          const errorMessage =
+            error.response?.data?.message || "Signup failed. Please try again.";
+          set({ error: errorMessage, isLoading: false });
+          throw new Error(errorMessage);
+        }
+      },
+
+      verifyOtp: async (email, otp) => {
+        set({ isLoading: true, error: null });
+        try {
+          await axiosInstance.post("/auth/verify-otp", {
+            email,
+            otp,
+          });
+          set({ isLoading: false });
+        } catch (error: any) {
+          const errorMessage =
+            error.response?.data?.message ||
+            "OTP verification failed. Please try again.";
+          set({ error: errorMessage, isLoading: false });
+          throw new Error(errorMessage);
+        }
+      },
+
+      resendOtp: async (email) => {
+        set({ isLoading: true, error: null });
+        try {
+          await axiosInstance.post("/auth/resend-otp", {
+            email,
+          });
+          set({ isLoading: false });
+        } catch (error: any) {
+          const errorMessage =
+            error.response?.data?.message || "Failed to resend OTP.";
+          set({ error: errorMessage, isLoading: false });
+          throw new Error(errorMessage);
+        }
+      },
+
+      signin: async (email, password) => {
+        set({ isLoading: true, error: null });
+        try {
+          await axiosInstance.post("/auth/signin", {
+            email,
+            password,
+          });
+
+          set({
+            user: { email, firstName: "", lastName: "" },
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } catch (error: any) {
+          const errorMessage =
+            error.response?.data?.message || "Login failed. Please try again.";
+          set({
+            error: errorMessage,
+            isLoading: false,
+            isAuthenticated: false,
+          });
+          throw new Error(errorMessage);
+        }
+      },
+
+      logout: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          await axiosInstance.post("/auth/logout");
+          set({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+        } catch (error: any) {
+          const errorMessage =
+            error.response?.data?.message || "Logout failed. Please try again.";
+          set({ error: errorMessage, isLoading: false });
+          throw new Error(errorMessage);
+        }
+      },
+
+      clearError: () => {
+        set({ error: null });
+      },
+    }),
+    {
+      name: "auth-storage",
+      partialize: (state) => ({
+        isAuthenticated: state.isAuthenticated,
+        user: state.user,
+      }),
     }
-  },
-
-  verifyOtp: async (email, otp) => {
-    set({ isLoading: true, error: null });
-    try {
-      await axiosInstance.post("/auth/verify-otp", {
-        email,
-        otp,
-      });
-      set({ isLoading: false });
-    } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.message ||
-        "OTP verification failed. Please try again.";
-      set({ error: errorMessage, isLoading: false });
-      throw new Error(errorMessage);
-    }
-  },
-
-  resendOtp: async (email) => {
-    set({ isLoading: true, error: null });
-    try {
-      await axiosInstance.post("/auth/resend-otp", {
-        email,
-      });
-      set({ isLoading: false });
-    } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.message || "Failed to resend OTP.";
-      set({ error: errorMessage, isLoading: false });
-      throw new Error(errorMessage);
-    }
-  },
-
-  signin: async (email, password) => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await axiosInstance.post("/auth/signin", {
-        email,
-        password,
-      });
-
-      // Store user info in local state
-      set({
-        user: { email, firstName: "", lastName: "" },
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.message || "Login failed. Please try again.";
-      set({ error: errorMessage, isLoading: false, isAuthenticated: false });
-      throw new Error(errorMessage);
-    }
-  },
-
-  logout: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      await axiosInstance.post("/auth/logout");
-      set({
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
-    } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.message || "Logout failed. Please try again.";
-      set({ error: errorMessage, isLoading: false });
-      throw new Error(errorMessage);
-    }
-  },
-
-  clearError: () => {
-    set({ error: null });
-  },
-}));
+  )
+);
