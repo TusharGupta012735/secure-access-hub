@@ -42,7 +42,7 @@ export interface Attendance {
   carduid: string;
   bsguid: string;
   fullname: string;
-  datetime: string;
+  date_time: string;
   location: string;
   event: string;
 }
