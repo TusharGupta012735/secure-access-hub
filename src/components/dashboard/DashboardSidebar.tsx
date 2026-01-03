@@ -40,25 +40,25 @@ const navGroups: NavGroup[] = [
     items: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
       { icon: BarChart3, label: "Analytics", path: "/dashboard/analytics" },
-      { icon: Bell, label: "Alerts", path: "/dashboard/alerts", badge: 5 },
+      // { icon: Bell, label: "Alerts", path: "/dashboard/alerts", badge: 5 },
     ],
   },
-  {
-    title: "Management",
-    items: [
-      { icon: Users, label: "Participants", path: "/dashboard/participants" },
-      { icon: CreditCard, label: "RFID Cards", path: "/dashboard/cards" },
-      { icon: Calendar, label: "Events", path: "/dashboard/events" },
-      { icon: Shield, label: "Access Zones", path: "/dashboard/zones" },
-    ],
-  },
-  {
-    title: "Reports",
-    items: [
-      { icon: FileText, label: "Attendance", path: "/dashboard/attendance" },
-      { icon: FileText, label: "Access Logs", path: "/dashboard/logs" },
-    ],
-  },
+  // {
+  //   title: "Management",
+  //   items: [
+  //     { icon: Users, label: "Participants", path: "/dashboard/participants" },
+  //     { icon: CreditCard, label: "RFID Cards", path: "/dashboard/cards" },
+  //     { icon: Calendar, label: "Events", path: "/dashboard/events" },
+  //     { icon: Shield, label: "Access Zones", path: "/dashboard/zones" },
+  //   ],
+  // },
+  // {
+  //   title: "Reports",
+  //   items: [
+  //     { icon: FileText, label: "Attendance", path: "/dashboard/attendance" },
+  //     { icon: FileText, label: "Access Logs", path: "/dashboard/logs" },
+  //   ],
+  // },
 ];
 
 interface DashboardSidebarProps {
