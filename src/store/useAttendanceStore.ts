@@ -6,11 +6,18 @@ export const useAttendanceStore = create<AttendanceState>((set) => ({
   records: [],
   isAttendanceLoading: false,
 
+  resetAttendance: () =>
+    set({
+      records: [],
+      isAttendanceLoading: false,
+    }),
+
   getAttendance: async () => {
     set({ isAttendanceLoading: true });
     try {
-      const res = await axiosInstance.get<Attendance[]>("/attendance/");
+      const res = await axiosInstance.get<Attendance[]>("/attendance/admin/");
       set({ records: res.data });
+      return res.data;
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || "Failed to fetch attendance";
@@ -24,13 +31,102 @@ export const useAttendanceStore = create<AttendanceState>((set) => ({
     set({ isAttendanceLoading: true });
     try {
       const res = await axiosInstance.get<Attendance[]>(
-        `/attendance/${encodeURIComponent(eventName)}`
+        `/attendance/admin/${encodeURIComponent(eventName)}`
       );
       set({ records: res.data });
+      return res.data;
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || "Failed to fetch attendance";
       toast.error(errorMessage);
+    } finally {
+      set({ isAttendanceLoading: false });
+    }
+  },
+  getAttendanceByEventAndDate: async (
+    eventName: string,
+    date: string // "2026-01-03"
+  ) => {
+    set({ isAttendanceLoading: true });
+    try {
+      const res = await axiosInstance.get<Attendance[]>(
+        "/attendance/admin/search/by-event-and-date",
+        {
+          params: {
+            eventName,
+            date,
+          },
+        }
+      );
+      set({ records: res.data });
+      return res.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to fetch attendance by event and date";
+      toast.error(errorMessage);
+    } finally {
+      set({ isAttendanceLoading: false });
+    }
+  },
+
+  getAttendanceByEventDateAndTime: async (
+    eventName: string,
+    date: string, // "2026-01-03"
+    startTime: string, // "09:00:00"
+    endTime: string // "12:00:00"
+  ) => {
+    set({ isAttendanceLoading: true });
+    try {
+      const res = await axiosInstance.get<Attendance[]>(
+        "/attendance/admin/search/by-event-date-and-time",
+        {
+          params: {
+            eventName,
+            date,
+            startTime,
+            endTime,
+          },
+        }
+      );
+      set({ records: res.data });
+      return res.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to fetch attendance by event, date and time range";
+      toast.error(errorMessage);
+    } finally {
+      set({ isAttendanceLoading: false });
+    }
+  },
+  getAttendanceByEventDateAndTimeAfter: async (
+    eventName: string,
+    date: string,
+    time: string
+  ) => {
+    set({ isAttendanceLoading: true });
+    try {
+      const res = await axiosInstance.get<Attendance[]>(
+        "/attendance/admin/search/by-event-date-and-time-after",
+        {
+          params: { eventName, date, time },
+        }
+      );
+
+      set((state) => {
+        // merge existing + new
+        const merged = [...state.records, ...res.data];
+
+        // dedupe by id (IMPORTANT)
+        const unique = Array.from(
+          new Map(merged.map((r) => [r.id, r])).values()
+        );
+
+        return { records: unique };
+      });
+
+      return res.data;
     } finally {
       set({ isAttendanceLoading: false });
     }
@@ -50,6 +146,22 @@ export interface Attendance {
 interface AttendanceState {
   records: Attendance[];
   isAttendanceLoading: boolean;
-  getAttendance: () => Promise<void>;
-  getAttendanceByEvent: (eventName: string) => Promise<void>;
+  resetAttendance: () => void;
+  getAttendance: () => Promise<Attendance[]>;
+  getAttendanceByEvent: (eventName: string) => Promise<Attendance[]>;
+  getAttendanceByEventAndDate: (
+    eventName: string,
+    date: string
+  ) => Promise<Attendance[]>;
+  getAttendanceByEventDateAndTime: (
+    eventName: string,
+    date: string,
+    startTime: string,
+    endTime: string
+  ) => Promise<Attendance[]>;
+  getAttendanceByEventDateAndTimeAfter: (
+    eventName: string,
+    date: string,
+    time: string
+  ) => Promise<Attendance[]>;
 }

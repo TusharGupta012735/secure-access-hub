@@ -19,6 +19,8 @@ import {
   CheckCircle2,
   MapPin,
   X,
+  Calendar,
+  LineChartIcon,
 } from "lucide-react";
 import {
   XAxis,
@@ -32,54 +34,66 @@ import {
   Legend,
   BarChart,
   Bar,
+  Line,
+  LineChart,
 } from "recharts";
 import { useAttendanceStore } from "@/store/useAttendanceStore";
 
 const Analytics = () => {
   const [userRole] = useState("admin");
   const [searchEvent, setSearchEvent] = useState("");
+  const [analyticsData, setAnalyticsData] = useState<any[]>([]);
 
   const {
     records: allRecords,
-    getAttendance,
+    resetAttendance,
+    getAttendanceByEvent,
     isAttendanceLoading,
   } = useAttendanceStore();
 
-  // 1. Fetch ALL data on mount (as per previous logic)
   useEffect(() => {
-    getAttendance();
-  }, [getAttendance]);
+    resetAttendance();
+  }, [resetAttendance]);
 
-  // 2. Filter logic: Show NOTHING unless an event name is entered
+  useEffect(() => {
+    if (!searchEvent.trim()) {
+      setAnalyticsData([]);
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      const data = await getAttendanceByEvent(searchEvent);
+      setAnalyticsData(data || []);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [searchEvent, getAttendanceByEvent]);
+
   const filteredRecords = useMemo(() => {
     if (!searchEvent.trim()) return [];
 
-    const query = searchEvent.toLowerCase();
-    return allRecords
-      .filter((r) => (r.event || "").toLowerCase().includes(query))
-      .map((r) => ({
-        ...r,
-        event: r.event ?? "Unknown",
-        fullname: r.fullname ?? "Unknown",
-        location: r.location ?? "Unknown Zone",
-        datetime: r.date_time ?? "",
-        status: (r.event || "").toLowerCase().includes("denied")
-          ? "denied"
-          : "success",
-      }));
-  }, [searchEvent, allRecords]);
+    // Data is already filtered by API, so just map and normalize
+    return analyticsData.map((r) => ({
+      ...r,
+      event: r.event ?? "Unknown",
+      fullname: r.fullname ?? "Unknown",
+      location: r.location ?? "Unknown Zone",
+      datetime: r.date_time ?? "",
+      status: (r.event || "").toLowerCase().includes("denied")
+        ? "denied"
+        : "success",
+    }));
+  }, [analyticsData]);
 
   // --- ANALYTICS CALCULATIONS (Based on filteredRecords) ---
 
   // A. Zone Distribution
   const zoneData = useMemo(() => {
     if (filteredRecords.length === 0) return [];
-
     const counts: Record<string, number> = {};
     filteredRecords.forEach((rec) => {
       counts[rec.location] = (counts[rec.location] || 0) + 1;
     });
-
     const COLORS = ["#06b6d4", "#f43f5e", "#84cc16", "#eab308", "#6366f1"];
     return Object.entries(counts)
       .map(([name, value], index) => ({
@@ -93,40 +107,50 @@ const Analytics = () => {
   // B. Status Distribution
   const statusData = useMemo(() => {
     if (filteredRecords.length === 0) return [];
-
     const counts = { success: 0, denied: 0 };
     filteredRecords.forEach((rec) => {
       if (rec.status === "denied") counts.denied++;
       else counts.success++;
     });
-
     return [
       { name: "Authorized", value: counts.success, color: "#10b981" },
       { name: "Denied", value: counts.denied, color: "#ef4444" },
     ];
   }, [filteredRecords]);
 
-  // C. Daily/Hourly Volume (Bar Chart)
-  const volumeData = useMemo(() => {
+  // C. Hourly Trend (Line Chart)
+  const hourlyTrendData = useMemo(() => {
     if (filteredRecords.length === 0) return [];
-
-    const timeMap: Record<string, number> = {};
-
+    const hourMap: Record<string, number> = {};
     filteredRecords.forEach((rec) => {
       if (!rec.datetime) return;
-      // If searching a specific event, it likely happens on one day,
-      // so showing Hours might be better, but we'll stick to Dates for consistency
-      // or formatting based on data spread.
-      const key = rec.datetime.split(" ")[0]; // Date YYYY-MM-DD
-      timeMap[key] = (timeMap[key] || 0) + 1;
+      const hourLabel = new Date(rec.datetime).toLocaleTimeString([], {
+        hour: "2-digit",
+        hour12: true,
+      });
+      hourMap[hourLabel] = (hourMap[hourLabel] || 0) + 1;
     });
-
-    return Object.entries(timeMap)
-      .map(([date, entries]) => ({ date, entries }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return Object.entries(hourMap).map(([hour, entries]) => ({
+      hour,
+      entries,
+    }));
   }, [filteredRecords]);
 
-  // Metrics
+  // D. Daily Distribution (Bar Chart)
+  const dailyData = useMemo(() => {
+    if (filteredRecords.length === 0) return [];
+    const dayMap: Record<string, number> = {};
+    filteredRecords.forEach((rec) => {
+      if (!rec.datetime) return;
+      const dateLabel = new Date(rec.datetime).toLocaleDateString([], {
+        month: "short",
+        day: "numeric",
+      });
+      dayMap[dateLabel] = (dayMap[dateLabel] || 0) + 1;
+    });
+    return Object.entries(dayMap).map(([date, count]) => ({ date, count }));
+  }, [filteredRecords]);
+
   const uniqueUsers = new Set(filteredRecords.map((r) => r.bsguid)).size;
   const successRate = filteredRecords.length
     ? Math.round(
@@ -136,6 +160,52 @@ const Analytics = () => {
       )
     : 0;
   const hasData = filteredRecords.length > 0;
+
+  //-----------------------------Export Button Logic -----------------------------//
+  const handleExport = () => {
+    if (!hasData) return;
+
+    const headers = [
+      "Full Name",
+      "BSD UID",
+      "Event",
+      "Location",
+      "Date Time",
+      "Status",
+    ];
+
+    const rows = filteredRecords.map((r) => [
+      r.fullname,
+      r.bsguid,
+      r.event,
+      r.location,
+      r.datetime,
+      r.status,
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers, ...rows]
+        .map((e) => e.map((v) => `"${v ?? ""}"`).join(","))
+        .join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+
+    link.setAttribute(
+      "download",
+      `${searchEvent.replace(/\s+/g, "_")}_attendance_${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`
+    );
+    link.setAttribute("href", encodedUri);
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  //-----------------------------Export Button Logic -----------------------------//
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -186,7 +256,12 @@ const Analytics = () => {
               )}
             </div>
             <div className="ml-auto">
-              <Button variant="outline" disabled={!hasData} className="gap-2">
+              <Button
+                variant="outline"
+                disabled={!hasData}
+                className="gap-2"
+                onClick={handleExport}
+              >
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline">Export</span>
               </Button>
@@ -329,31 +404,69 @@ const Analytics = () => {
           </Card>
         </div>
 
-        {/* --- BAR GRAPH --- */}
-        <Card className="shadow-sm mb-8">
+        {/* 1. Updated: HOURLY TREND (Line Chart) */}
+        <Card className="shadow-sm mb-8 border-t-4 border-t-indigo-500">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <BarChartIcon className="h-4 w-4 text-indigo-500" />
-              Attendance Volume
+              <LineChartIcon className="h-4 w-4 text-indigo-500" />
+              Peak Activity Times
             </CardTitle>
             <CardDescription>
-              Records over time for selected event
+              Hourly attendance flow for this event
             </CardDescription>
           </CardHeader>
-          <CardContent className="h-[350px] flex items-center justify-center">
+          <CardContent className="h-[300px]">
             {!hasData ? (
-              <div className="text-center">
-                <BarChartIcon className="h-10 w-10 text-muted-foreground/20 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  Data will appear here after search
-                </p>
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                Search event to see trends
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={volumeData}
-                  margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
-                >
+                <LineChart data={hourlyTrendData}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#e2e8f0"
+                  />
+                  <XAxis
+                    dataKey="hour"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis fontSize={12} tickLine={false} axisLine={false} />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="entries"
+                    stroke="#6366f1"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#6366f1" }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 2. New: DAILY ATTENDEES (Bar Chart) */}
+        <Card className="shadow-sm mb-8 border-t-4 border-t-emerald-500">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-emerald-500" />
+              Attendance by Date
+            </CardTitle>
+            <CardDescription>Daily volume breakdown</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            {!hasData ? (
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                Waiting for event data...
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dailyData}>
                   <CartesianGrid
                     strokeDasharray="3 3"
                     vertical={false}
@@ -364,22 +477,14 @@ const Analytics = () => {
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
-                    tickMargin={10}
                   />
                   <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    cursor={{ fill: "rgba(99, 102, 241, 0.1)" }}
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "none",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                    }}
-                  />
+                  <Tooltip cursor={{ fill: "rgba(16, 185, 129, 0.05)" }} />
                   <Bar
-                    dataKey="entries"
-                    fill="#6366f1"
-                    radius={[6, 6, 0, 0]}
-                    barSize={50}
+                    dataKey="count"
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]}
+                    barSize={40}
                   />
                 </BarChart>
               </ResponsiveContainer>

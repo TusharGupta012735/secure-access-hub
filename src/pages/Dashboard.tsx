@@ -45,21 +45,67 @@ const Dashboard = () => {
   const [userRole] = useState<UserRole>("admin");
   const [eventName, setEventName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [lastFetchedTime, setLastFetchedTime] = useState<string | null>(null);
 
   const {
     records: attendanceRecords,
+    resetAttendance,
     getAttendance,
     isAttendanceLoading,
     getAttendanceByEvent,
+    getAttendanceByEventAndDate,
+    getAttendanceByEventDateAndTimeAfter,
   } = useAttendanceStore();
 
-  const fetchData = useCallback(() => {
-    if (eventName.trim()) {
-      getAttendanceByEvent(eventName);
-    } else {
-      getAttendance();
+  useEffect(() => {
+    resetAttendance();
+  }, [resetAttendance]);
+
+  const today = useMemo(() => {
+    return new Date().toISOString().split("T")[0];
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    if (!eventName.trim()) {
+      // Clear records if no event name
+      return;
     }
-  }, [eventName, getAttendance, getAttendanceByEvent]);
+
+    // 1️⃣ First fetch - Get all data for event and date
+    if (!lastFetchedTime) {
+      const data = await getAttendanceByEventAndDate(eventName, today);
+
+      if (!data || data.length === 0) return;
+
+      const latest = data.reduce((max, r) =>
+        new Date(r.date_time) > new Date(max.date_time) ? r : max
+      );
+
+      setLastFetchedTime(new Date(latest.date_time).toTimeString().slice(0, 8));
+      return;
+    }
+
+    // 2️⃣ Incremental fetch - Get only new records after last fetch
+    const newData = await getAttendanceByEventDateAndTimeAfter(
+      eventName,
+      today,
+      lastFetchedTime
+    );
+
+    if (!newData || newData.length === 0) return;
+
+    const latest = newData.reduce((max, r) =>
+      new Date(r.date_time) > new Date(max.date_time) ? r : max
+    );
+
+    setLastFetchedTime(new Date(latest.date_time).toTimeString().slice(0, 8));
+  }, [
+    eventName,
+    today,
+    lastFetchedTime,
+    getAttendanceByEventAndDate,
+    getAttendanceByEventDateAndTimeAfter,
+  ]);
 
   useEffect(() => {
     fetchData();
@@ -92,6 +138,10 @@ const Dashboard = () => {
       };
     });
   }, [attendanceRecords]);
+
+  useEffect(() => {
+    setLastFetchedTime(null);
+  }, [eventName]);
 
   // --- CHART LOGIC ---
 

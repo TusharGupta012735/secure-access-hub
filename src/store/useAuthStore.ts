@@ -105,11 +105,23 @@ export const useAuthStore = create<AuthState>()(
             password,
           });
 
+          const userData = { email, firstName: "", lastName: "" };
           set({
-            user: { email, firstName: "", lastName: "" },
+            user: userData,
             isAuthenticated: true,
             isLoading: false,
           });
+
+          // Explicitly store in localStorage
+          localStorage.setItem(
+            "auth-storage",
+            JSON.stringify({
+              state: {
+                isAuthenticated: true,
+                user: userData,
+              },
+            })
+          );
         } catch (error: any) {
           const errorMessage =
             error.response?.data?.message || "Login failed. Please try again.";
@@ -131,6 +143,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
             isLoading: false,
           });
+          // Explicitly clear from localStorage
+          localStorage.removeItem("auth-storage");
         } catch (error: any) {
           const errorMessage =
             error.response?.data?.message || "Logout failed. Please try again.";

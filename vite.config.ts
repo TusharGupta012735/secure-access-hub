@@ -4,8 +4,6 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 export default defineConfig(({ mode }) => ({
-  // Add this line to match your GitHub repository name
-  base: "/secure-access-hub/",
   server: {
     host: "::",
     port: 8080,
