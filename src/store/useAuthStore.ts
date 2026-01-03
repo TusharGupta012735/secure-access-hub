@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { axiosInstance } from "../lib/axios";
+import axiosInstance from "../lib/axios";
 
 interface User {
   id?: number;
@@ -100,10 +100,14 @@ export const useAuthStore = create<AuthState>()(
       signin: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
-          await axiosInstance.post("/auth/signin", {
+          const res = await axiosInstance.post("/auth/signin", {
             email,
             password,
           });
+
+          if (res.data?.token) {
+            localStorage.setItem("token", res.data.token);
+          }
 
           const userData = { email, firstName: "", lastName: "" };
           set({
@@ -111,17 +115,6 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
-
-          // Explicitly store in localStorage
-          localStorage.setItem(
-            "auth-storage",
-            JSON.stringify({
-              state: {
-                isAuthenticated: true,
-                user: userData,
-              },
-            })
-          );
         } catch (error: any) {
           const errorMessage =
             error.response?.data?.message || "Login failed. Please try again.";
