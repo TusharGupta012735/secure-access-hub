@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: "http://192.168.56.1:8080/api",
+  baseURL: "https://bsd-dashboard.duckdns.org/api",
   withCredentials: true,
 });
 
