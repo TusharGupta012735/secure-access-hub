@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: "https://bsd-dashboard.duckdns.org/api",
+  baseURL: "https://smartserv.in/bsd-dashboard/api",
   withCredentials: true,
 });
 
