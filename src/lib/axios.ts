@@ -1,7 +1,8 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: "https://smartserv.in/bsd-dashboard/api",
+  // baseURL: "https://smartserv.in/bsd-dashboard/api",
+  baseURL: "http://localhost:9090/api",
   withCredentials: true,
 });
 

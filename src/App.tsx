@@ -16,6 +16,7 @@ import OtpVerify from "./pages/OtpVerify";
 import Dashboard from "./pages/Dashboard";
 import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
+import DeniedCandidates from "./pages/DeniedCandidates";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +69,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Analytics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/deniedCandidates"
+                element={
+                  <ProtectedRoute>
+                    <DeniedCandidates />
                   </ProtectedRoute>
                 }
               />

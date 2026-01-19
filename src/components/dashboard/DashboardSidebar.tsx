@@ -1,10 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
-  Users,
-  CreditCard,
-  Shield,
   BarChart3,
   Settings,
   LogOut,
@@ -12,10 +9,9 @@ import {
   ChevronRight,
   Radio,
   Bell,
-  Calendar,
-  FileText,
   Sun,
   Moon,
+  User as UserIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -40,25 +36,14 @@ const navGroups: NavGroup[] = [
     items: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
       { icon: BarChart3, label: "Analytics", path: "/dashboard/analytics" },
-      // { icon: Bell, label: "Alerts", path: "/dashboard/alerts", badge: 5 },
+      {
+        icon: Bell,
+        label: "Denied Candidates",
+        path: "/dashboard/deniedCandidates",
+        badge: 5,
+      },
     ],
   },
-  // {
-  //   title: "Management",
-  //   items: [
-  //     { icon: Users, label: "Participants", path: "/dashboard/participants" },
-  //     { icon: CreditCard, label: "RFID Cards", path: "/dashboard/cards" },
-  //     { icon: Calendar, label: "Events", path: "/dashboard/events" },
-  //     { icon: Shield, label: "Access Zones", path: "/dashboard/zones" },
-  //   ],
-  // },
-  // {
-  //   title: "Reports",
-  //   items: [
-  //     { icon: FileText, label: "Attendance", path: "/dashboard/attendance" },
-  //     { icon: FileText, label: "Access Logs", path: "/dashboard/logs" },
-  //   ],
-  // },
 ];
 
 interface DashboardSidebarProps {
@@ -72,7 +57,8 @@ export function DashboardSidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const { logout, isLoading } = useAuthStore();
+
+  const { logout, isLoading, user, isAuthenticated } = useAuthStore();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -85,23 +71,62 @@ export function DashboardSidebar({
     }
   };
 
-  const roleLabels = {
-    admin: "Administrator",
-    gate_operator: "Gate Operator",
-    kitchen_operator: "Kitchen Operator",
-  };
+  // UI role label based on auth user role if available
+  const roleLabel = useMemo(() => {
+    const apiRole = user?.role;
 
-  const roleColors = {
-    admin: "bg-primary",
-    gate_operator: "bg-accent",
-    kitchen_operator: "bg-warning",
-  };
+    if (apiRole === "ADMIN") return "Administrator";
+    if (apiRole === "USER") return "Operator";
+
+    // fallback to sidebar prop role
+    const roleLabels = {
+      admin: "Administrator",
+      gate_operator: "Gate Operator",
+      kitchen_operator: "Kitchen Operator",
+    };
+
+    return roleLabels[userRole];
+  }, [user?.role, userRole]);
+
+  const roleDotColor = useMemo(() => {
+    const apiRole = user?.role;
+
+    if (apiRole === "ADMIN") return "bg-primary";
+    if (apiRole === "USER") return "bg-accent";
+
+    const roleColors = {
+      admin: "bg-primary",
+      gate_operator: "bg-accent",
+      kitchen_operator: "bg-warning",
+    };
+
+    return roleColors[userRole];
+  }, [user?.role, userRole]);
+
+  const displayName = useMemo(() => {
+    const fn = user?.firstName?.trim();
+    const ln = user?.lastName?.trim();
+
+    if (fn || ln) return `${fn ?? ""} ${ln ?? ""}`.trim();
+    if (user?.email) return user.email;
+    return "Guest";
+  }, [user]);
+
+  const initials = useMemo(() => {
+    const fn = user?.firstName?.trim();
+    const ln = user?.lastName?.trim();
+
+    if (fn && ln) return `${fn[0]}${ln[0]}`.toUpperCase();
+    if (fn) return fn.slice(0, 2).toUpperCase();
+    if (user?.email) return user.email.slice(0, 2).toUpperCase();
+    return "U";
+  }, [user]);
 
   return (
     <aside
       className={cn(
         "fixed left-0 top-0 z-40 h-screen bg-sidebar transition-all duration-300 flex flex-col",
-        collapsed ? "w-16" : "w-64"
+        collapsed ? "w-16" : "w-64",
       )}
     >
       {/* Header */}
@@ -122,26 +147,32 @@ export function DashboardSidebar({
       <div
         className={cn(
           "p-4 border-b border-sidebar-border",
-          collapsed && "px-2"
+          collapsed && "px-2",
         )}
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-semibold flex-shrink-0">
-            JD
+            {isAuthenticated ? initials : <UserIcon className="h-5 w-5" />}
           </div>
+
           {!collapsed && (
             <div className="min-w-0">
               <p className="text-sm font-medium text-sidebar-foreground truncate">
-                John Doe
+                {displayName}
               </p>
+
               <div className="flex items-center gap-2">
-                <span
-                  className={cn("h-2 w-2 rounded-full", roleColors[userRole])}
-                />
+                <span className={cn("h-2 w-2 rounded-full", roleDotColor)} />
                 <span className="text-xs text-sidebar-muted truncate">
-                  {roleLabels[userRole]}
+                  {roleLabel}
                 </span>
               </div>
+
+              {user?.email && (
+                <p className="text-[11px] text-sidebar-muted truncate mt-1">
+                  {user.email}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -156,6 +187,7 @@ export function DashboardSidebar({
                 {group.title}
               </p>
             )}
+
             <ul className="space-y-1">
               {group.items.map((item) => (
                 <li key={item.path}>
@@ -166,7 +198,7 @@ export function DashboardSidebar({
                       isActive(item.path)
                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
                         : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
-                      collapsed && "justify-center px-2"
+                      collapsed && "justify-center px-2",
                     )}
                     title={collapsed ? item.label : undefined}
                   >
@@ -195,7 +227,7 @@ export function DashboardSidebar({
           variant="ghost"
           className={cn(
             "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-            collapsed && "justify-center px-2"
+            collapsed && "justify-center px-2",
           )}
           onClick={toggleTheme}
         >
@@ -206,22 +238,24 @@ export function DashboardSidebar({
           )}
           {!collapsed && <span className="ml-3">Toggle Theme</span>}
         </Button>
+
         <Link
           to="/dashboard/settings"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-            collapsed && "justify-center px-2"
+            collapsed && "justify-center px-2",
           )}
         >
           <Settings className="h-5 w-5 flex-shrink-0" />
           {!collapsed && <span>Settings</span>}
         </Link>
+
         <Link
           to="/"
           onClick={handleLogout}
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-            collapsed && "justify-center px-2"
+            collapsed && "justify-center px-2",
           )}
         >
           <LogOut className="h-5 w-5 flex-shrink-0" />

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { KPICard } from "@/components/dashboard/KPICard";
 import {
@@ -15,12 +15,12 @@ import {
   Search,
   Filter,
   Download,
-  BarChart as BarChartIcon,
   CheckCircle2,
   MapPin,
   X,
   Calendar,
   LineChartIcon,
+  RefreshCw,
 } from "lucide-react";
 import {
   XAxis,
@@ -38,60 +38,179 @@ import {
   LineChart,
 } from "recharts";
 import { useAttendanceStore } from "@/store/useAttendanceStore";
+import { useAttendanceDeniedStore } from "@/store/useAttendanceDeniedStore";
 
 const Analytics = () => {
   const [userRole] = useState("admin");
   const [searchEvent, setSearchEvent] = useState("");
+
+  // Allowed + Denied data
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
+  const [deniedAnalyticsData, setDeniedAnalyticsData] = useState<any[]>([]);
+
+  // Incremental polling timestamps
+  const [lastFetchedTime, setLastFetchedTime] = useState<string | null>(null);
+  const [lastDeniedFetchedTime, setLastDeniedFetchedTime] = useState<
+    string | null
+  >(null);
 
   const {
-    records: allRecords,
     resetAttendance,
-    getAttendanceByEvent,
     isAttendanceLoading,
+    getAttendanceByEventAndDate,
+    getAttendanceByEventDateAndTimeAfter,
   } = useAttendanceStore();
+
+  const {
+    resetDenied,
+    isDeniedLoading,
+    getDeniedByEventAndDate,
+    getDeniedByEventDateAndTimeAfter,
+  } = useAttendanceDeniedStore();
 
   useEffect(() => {
     resetAttendance();
-  }, [resetAttendance]);
+    resetDenied();
+  }, [resetAttendance, resetDenied]);
 
-  useEffect(() => {
-    if (!searchEvent.trim()) {
-      setAnalyticsData([]);
-      return;
+  const today = useMemo(() => {
+    return new Date().toISOString().split("T")[0];
+  }, []);
+
+  // ✅ MAIN POLLING (Allowed + Denied)
+  const fetchAnalyticsData = useCallback(async () => {
+    if (!searchEvent.trim()) return;
+
+    /* ================== ALLOWED ================== */
+    if (!lastFetchedTime) {
+      const data = await getAttendanceByEventAndDate(searchEvent, today);
+      setAnalyticsData(data || []);
+
+      if (data && data.length > 0) {
+        const latest = data.reduce((max: any, r: any) =>
+          new Date(r.date_time) > new Date(max.date_time) ? r : max,
+        );
+
+        setLastFetchedTime(
+          new Date(latest.date_time).toTimeString().slice(0, 8),
+        );
+      }
+    } else {
+      const newData = await getAttendanceByEventDateAndTimeAfter(
+        searchEvent,
+        today,
+        lastFetchedTime,
+      );
+
+      if (newData && newData.length > 0) {
+        setAnalyticsData((prev) => [...prev, ...newData]);
+
+        const latest = newData.reduce((max: any, r: any) =>
+          new Date(r.date_time) > new Date(max.date_time) ? r : max,
+        );
+
+        setLastFetchedTime(
+          new Date(latest.date_time).toTimeString().slice(0, 8),
+        );
+      }
     }
 
-    const timeout = setTimeout(async () => {
-      const data = await getAttendanceByEvent(searchEvent);
-      setAnalyticsData(data || []);
-    }, 400);
+    /* ================== DENIED ================== */
+    if (!lastDeniedFetchedTime) {
+      const denied = await getDeniedByEventAndDate(searchEvent, today);
+      setDeniedAnalyticsData(denied || []);
 
-    return () => clearTimeout(timeout);
-  }, [searchEvent, getAttendanceByEvent]);
+      if (denied && denied.length > 0) {
+        const latestDenied = denied.reduce((max: any, r: any) =>
+          new Date(r.attempted_date_time) > new Date(max.attempted_date_time)
+            ? r
+            : max,
+        );
 
+        setLastDeniedFetchedTime(
+          new Date(latestDenied.attempted_date_time).toTimeString().slice(0, 8),
+        );
+      }
+    } else {
+      const newDenied = await getDeniedByEventDateAndTimeAfter(
+        searchEvent,
+        today,
+        lastDeniedFetchedTime,
+      );
+
+      if (newDenied && newDenied.length > 0) {
+        setDeniedAnalyticsData((prev) => [...prev, ...newDenied]);
+
+        const latestDenied = newDenied.reduce((max: any, r: any) =>
+          new Date(r.attempted_date_time) > new Date(max.attempted_date_time)
+            ? r
+            : max,
+        );
+
+        setLastDeniedFetchedTime(
+          new Date(latestDenied.attempted_date_time).toTimeString().slice(0, 8),
+        );
+      }
+    }
+  }, [
+    searchEvent,
+    today,
+    lastFetchedTime,
+    lastDeniedFetchedTime,
+    getAttendanceByEventAndDate,
+    getAttendanceByEventDateAndTimeAfter,
+    getDeniedByEventAndDate,
+    getDeniedByEventDateAndTimeAfter,
+  ]);
+
+  // Poll every 5 sec
+  useEffect(() => {
+    fetchAnalyticsData();
+    const interval = setInterval(fetchAnalyticsData, 5000);
+    return () => clearInterval(interval);
+  }, [fetchAnalyticsData]);
+
+  // Reset when event changes
+  useEffect(() => {
+    setAnalyticsData([]);
+    setDeniedAnalyticsData([]);
+    setLastFetchedTime(null);
+    setLastDeniedFetchedTime(null);
+  }, [searchEvent]);
+
+  // ✅ Merge Allowed + Denied into one dataset for charts + KPIs
   const filteredRecords = useMemo(() => {
     if (!searchEvent.trim()) return [];
 
-    // Data is already filtered by API, so just map and normalize
-    return analyticsData.map((r) => ({
+    const allowedMapped = analyticsData.map((r) => ({
       ...r,
-      event: r.event ?? "Unknown",
+      event: r.event ?? searchEvent,
       fullname: r.fullname ?? "Unknown",
       location: r.location ?? "Unknown Zone",
       datetime: r.date_time ?? "",
-      status: (r.event || "").toLowerCase().includes("denied")
-        ? "denied"
-        : "success",
+      status: "success",
     }));
-  }, [analyticsData]);
 
-  // --- ANALYTICS CALCULATIONS (Based on filteredRecords) ---
+    const deniedMapped = deniedAnalyticsData.map((r) => ({
+      ...r,
+      event: r.event_name ?? searchEvent,
+      fullname: r.full_name ?? "Unknown",
+      location: r.location ?? "Unknown Zone",
+      datetime: r.attempted_date_time ?? "",
+      status: "denied",
+      denial_reason: r.denial_reason ?? "DENIED",
+    }));
+
+    return [...allowedMapped, ...deniedMapped];
+  }, [analyticsData, deniedAnalyticsData, searchEvent]);
+
+  // --- ANALYTICS CALCULATIONS ---
 
   // A. Zone Distribution
   const zoneData = useMemo(() => {
     if (filteredRecords.length === 0) return [];
     const counts: Record<string, number> = {};
-    filteredRecords.forEach((rec) => {
+    filteredRecords.forEach((rec: any) => {
       counts[rec.location] = (counts[rec.location] || 0) + 1;
     });
     const COLORS = ["#06b6d4", "#f43f5e", "#84cc16", "#eab308", "#6366f1"];
@@ -104,43 +223,54 @@ const Analytics = () => {
       .sort((a, b) => b.value - a.value);
   }, [filteredRecords]);
 
-  // B. Status Distribution
+  // B. Status Distribution (NOW WORKS ✅)
   const statusData = useMemo(() => {
     if (filteredRecords.length === 0) return [];
     const counts = { success: 0, denied: 0 };
-    filteredRecords.forEach((rec) => {
+
+    filteredRecords.forEach((rec: any) => {
       if (rec.status === "denied") counts.denied++;
       else counts.success++;
     });
+
     return [
       { name: "Authorized", value: counts.success, color: "#10b981" },
       { name: "Denied", value: counts.denied, color: "#ef4444" },
     ];
   }, [filteredRecords]);
 
-  // C. Hourly Trend (Line Chart)
+  // C. Hourly Trend
   const hourlyTrendData = useMemo(() => {
     if (filteredRecords.length === 0) return [];
-    const hourMap: Record<string, number> = {};
-    filteredRecords.forEach((rec) => {
+
+    const hourMap: Record<number, number> = {};
+    for (let i = 0; i < 24; i++) hourMap[i] = 0;
+
+    filteredRecords.forEach((rec: any) => {
       if (!rec.datetime) return;
-      const hourLabel = new Date(rec.datetime).toLocaleTimeString([], {
-        hour: "2-digit",
-        hour12: true,
-      });
-      hourMap[hourLabel] = (hourMap[hourLabel] || 0) + 1;
+      const dt = new Date(rec.datetime);
+      const h = dt.getHours();
+      hourMap[h] = (hourMap[h] || 0) + 1;
     });
+
+    const formatHour = (i: number) => {
+      if (i === 0) return "12AM";
+      if (i < 12) return `${i}AM`;
+      if (i === 12) return "12PM";
+      return `${i - 12}PM`;
+    };
+
     return Object.entries(hourMap).map(([hour, entries]) => ({
-      hour,
+      hour: formatHour(Number(hour)),
       entries,
     }));
   }, [filteredRecords]);
 
-  // D. Daily Distribution (Bar Chart)
+  // D. Daily Distribution
   const dailyData = useMemo(() => {
     if (filteredRecords.length === 0) return [];
     const dayMap: Record<string, number> = {};
-    filteredRecords.forEach((rec) => {
+    filteredRecords.forEach((rec: any) => {
       if (!rec.datetime) return;
       const dateLabel = new Date(rec.datetime).toLocaleDateString([], {
         month: "short",
@@ -151,14 +281,16 @@ const Analytics = () => {
     return Object.entries(dayMap).map(([date, count]) => ({ date, count }));
   }, [filteredRecords]);
 
-  const uniqueUsers = new Set(filteredRecords.map((r) => r.bsguid)).size;
+  const uniqueUsers = new Set(filteredRecords.map((r: any) => r.bsguid)).size;
+
   const successRate = filteredRecords.length
     ? Math.round(
-        (filteredRecords.filter((r) => r.status === "success").length /
+        (filteredRecords.filter((r: any) => r.status === "success").length /
           filteredRecords.length) *
-          100
+          100,
       )
     : 0;
+
   const hasData = filteredRecords.length > 0;
 
   //-----------------------------Export Button Logic -----------------------------//
@@ -172,15 +304,17 @@ const Analytics = () => {
       "Location",
       "Date Time",
       "Status",
+      "Denial Reason",
     ];
 
-    const rows = filteredRecords.map((r) => [
+    const rows = filteredRecords.map((r: any) => [
       r.fullname,
       r.bsguid,
       r.event,
       r.location,
       r.datetime,
       r.status,
+      r.status === "denied" ? (r.denial_reason ?? "") : "",
     ]);
 
     const csvContent =
@@ -194,9 +328,9 @@ const Analytics = () => {
 
     link.setAttribute(
       "download",
-      `${searchEvent.replace(/\s+/g, "_")}_attendance_${new Date()
+      `${searchEvent.replace(/\s+/g, "_")}_analytics_${new Date()
         .toISOString()
-        .slice(0, 10)}.csv`
+        .slice(0, 10)}.csv`,
     );
     link.setAttribute("href", encodedUri);
 
@@ -204,7 +338,6 @@ const Analytics = () => {
     link.click();
     document.body.removeChild(link);
   };
-
   //-----------------------------Export Button Logic -----------------------------//
 
   return (
@@ -223,12 +356,12 @@ const Analytics = () => {
             </p>
           </div>
 
-          {/* Search Bar - The Trigger for Data */}
+          {/* Search Bar */}
           <div className="flex items-center gap-4 bg-card p-4 rounded-xl border shadow-sm">
             <div className="relative flex-1 max-w-lg">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Enter Event Name to Load Data (e.g. 'Orientation')..."
+                placeholder="Enter Event Name to Load Data (e.g. 'RoadBasher')..."
                 className="pl-10"
                 value={searchEvent}
                 onChange={(e) => setSearchEvent(e.target.value)}
@@ -242,7 +375,9 @@ const Analytics = () => {
                 </button>
               )}
             </div>
+
             <div className="h-6 w-px bg-border hidden sm:block"></div>
+
             <div className="text-sm text-muted-foreground hidden sm:block">
               {hasData ? (
                 <span className="text-green-600 font-medium flex items-center gap-2">
@@ -255,6 +390,24 @@ const Analytics = () => {
                 <span>Waiting for input...</span>
               )}
             </div>
+
+            {/* Refresh */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={fetchAnalyticsData}
+              disabled={
+                isAttendanceLoading || isDeniedLoading || !searchEvent.trim()
+              }
+              title="Refresh"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${
+                  isAttendanceLoading || isDeniedLoading ? "animate-spin" : ""
+                }`}
+              />
+            </Button>
+
             <div className="ml-auto">
               <Button
                 variant="outline"
@@ -269,12 +422,12 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* KPI Cards - Start Zero/Blank */}
+        {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <KPICard
             title="Total Logs"
             value={hasData ? filteredRecords.length.toLocaleString() : "--"}
-            change={hasData ? "For this event" : "No event selected"}
+            change={hasData ? "Allowed + Denied" : "No event selected"}
             changeType="neutral"
             icon={FileText}
             iconColor="text-primary"
@@ -309,9 +462,9 @@ const Analytics = () => {
           />
         </div>
 
-        {/* --- PIE CHARTS ROW (Remaining 2 Charts) --- */}
+        {/* PIE CHARTS */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* 1. Zone Distribution */}
+          {/* Zone Distribution */}
           <Card className="shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -357,7 +510,7 @@ const Analytics = () => {
             </CardContent>
           </Card>
 
-          {/* 2. Status Distribution */}
+          {/* Status Distribution */}
           <Card className="shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -404,7 +557,7 @@ const Analytics = () => {
           </Card>
         </div>
 
-        {/* 1. Updated: HOURLY TREND (Line Chart) */}
+        {/* HOURLY TREND */}
         <Card className="shadow-sm mb-8 border-t-4 border-t-indigo-500">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -412,7 +565,7 @@ const Analytics = () => {
               Peak Activity Times
             </CardTitle>
             <CardDescription>
-              Hourly attendance flow for this event
+              Hourly attendance flow (Allowed + Denied)
             </CardDescription>
           </CardHeader>
           <CardContent className="h-[300px]">
@@ -450,7 +603,7 @@ const Analytics = () => {
           </CardContent>
         </Card>
 
-        {/* 2. New: DAILY ATTENDEES (Bar Chart) */}
+        {/* DAILY ATTENDEES */}
         <Card className="shadow-sm mb-8 border-t-4 border-t-emerald-500">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
